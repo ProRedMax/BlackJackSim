@@ -7,10 +7,21 @@ bj_stat = {}  # Player Value : dict(Dealer Up Card, Tuple(GamesPlayedWithHand, W
 bj_remember = {}  # Player Value : dict(Dealer Up Card : Action/Hit)
 verbose = False
 
+
 def calc_value(cards):
     value = 0
+    num_aces = 0
+
     for card in cards:
-        value = value + card.value
+        if card.isAce:
+            num_aces += 1
+        value += card.value
+
+    # Aces
+    while num_aces > 0 and value > 21:
+        value -= 10  # Reduce the value from the ace from 11 to 1
+        num_aces -= 1
+
     return value
 
 
@@ -141,9 +152,10 @@ bj_bs_hit_table = {}  # Player up card : dict:DealerUpCard : (GamesPlayed, Win, 
 bj_bs_stay_table = {}  # Player up card : dict:DealerUpCard : (GamesPlayed, Win, Loss)
 
 
-def stat_game(stay: bool = False):
-    current_deck = Deck.Deck(8)
-    current_deck.shuffle()
+def stat_game(current_deck: Deck.Deck, stay: bool = False):
+    if len(current_deck.cards) < 200:
+        current_deck = Deck.Deck(8)
+        current_deck.shuffle()
     dealer_upcard: Card.Card
 
     # Deal
@@ -160,7 +172,8 @@ def stat_game(stay: bool = False):
 
     if value == 21:  # BlackJack
         if verbose: print(("Black Jack!"))
-        remember_round(value, dealer_upcard.value, 2, bj_bs_hit_table)
+        remember_round(value, dealer_upcard.value, 1, bj_bs_hit_table)
+        remember_round(value, dealer_upcard.value, 2, bj_bs_stay_table)
         return
 
     while calc_value(my_cards) != 21 and not stay:
@@ -193,16 +206,6 @@ def stat_game(stay: bool = False):
     if calc_value(dealer_cards) > value:  # Loss
         remember_round(value, dealer_upcard.value, 1, bj_bs_stay_table)
         if verbose: print(("Loss"))
-        # Remember move for next round
-        if value in bj_remember:
-            actions = bj_remember[value]
-            if dealer_upcard.value in actions:
-                action = actions[dealer_upcard.value]
-                actions[dealer_upcard.value] = not action
-            else:
-                actions[dealer_upcard.value] = True
-        else:
-            bj_remember[value] = {dealer_upcard.value: True}
 
     elif calc_value(dealer_cards) < value:  # Win
         remember_round(value, dealer_upcard.value, 2, bj_bs_stay_table)
@@ -231,11 +234,12 @@ def trial_and_error():
 
 if __name__ == '__main__':
     # trial_and_error()
-
+    current_deck = Deck.Deck(8)  # TODO: Einzelne Decks shufflen
+    current_deck.shuffle()
     for i in range(1000000):
-        stat_game(False)
+        stat_game(stay=False, current_deck=current_deck)
     for i in range(1000000):
-        stat_game(True)
+        stat_game(stay=True, current_deck=current_deck)
 
     won = 0
     lost = 0
@@ -258,14 +262,15 @@ if __name__ == '__main__':
     wb = openpyxl.Workbook()
     sheet = wb.active
     sheet.title = "Black Jack Basic Strategy"
-    for player_upcard in range(1, 21):
+    for player_upcard in range(1, 22):
         if player_upcard not in bj_bs_hit_table or player_upcard not in bj_bs_stay_table:
             continue
-        for dealer_upcard in range(1, 21):
+        for dealer_upcard in range(1, 22):
             if dealer_upcard not in bj_bs_hit_table[player_upcard] \
                     or dealer_upcard not in bj_bs_stay_table[player_upcard]:
                 continue
-            if verbose: print(("Writing statistic for player up card", player_upcard, "with dealer up card", dealer_upcard))
+            if verbose: print(
+                ("Writing statistic for player up card", player_upcard, "with dealer up card", dealer_upcard))
             moves_played_hit = bj_bs_hit_table[player_upcard][dealer_upcard][0] or 0
             moves_won_hit = bj_bs_hit_table[player_upcard][dealer_upcard][1] or 1
             moves_lost_hit = bj_bs_hit_table[player_upcard][dealer_upcard][2] or 1
@@ -273,11 +278,17 @@ if __name__ == '__main__':
             moves_won_stay = bj_bs_stay_table[player_upcard][dealer_upcard][1] or 1
             moves_lost_stay = bj_bs_stay_table[player_upcard][dealer_upcard][2] or 1
 
-            ratio_hit = moves_lost_hit / moves_played_hit
-            ratio_stay = moves_lost_stay / moves_played_stay
-            if ratio_hit < ratio_stay:
+            ratio_hit = moves_won_hit / moves_played_hit
+            ratio_stay = moves_won_stay / moves_played_stay
+
+            print("Win Ratio for Player Card", player_upcard, "and Dealer UpCard", dealer_upcard)
+            print("Ratio Hit:", ratio_hit)
+            print("Ratio Stay:", ratio_stay)
+
+
+            if ratio_hit > ratio_stay:
                 char = "H"
-            elif ratio_stay < ratio_hit:
+            elif ratio_stay > ratio_hit:
                 char = "S"
             else:
                 char = "More tries!"

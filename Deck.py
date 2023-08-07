@@ -17,7 +17,7 @@ class Deck:
 
     def __init__(self, count=1):
         extract = []
-        self.cards = [Card.Card(1, True) * 4 * count, Card.Card(2, False) * 4 * count, Card.Card(3, False) * 4 * count,
+        self.cards = [Card.Card(11, True) * 4 * count, Card.Card(2, False) * 4 * count, Card.Card(3, False) * 4 * count,
                       Card.Card(4, False) * 4 * count,
                       Card.Card(5, False) * 4 * count, Card.Card(6, False) * 4 * count, Card.Card(7, False) * 4 * count,
                       Card.Card(8, False) * 4 * count,
